@@ -3,6 +3,7 @@ import threading
 import configparser
 import re
 import storage
+import urllib
 
 from urllib.request import urlopen
 from bs4 import BeautifulSoup as soup
@@ -52,42 +53,47 @@ class Scraper():
             time.sleep(self.interval)
 
     def processUsers(self,page_soup):
+        print("Starting to scrape on a new page")
         while True:
             time.sleep(self.interval)
             users = page_soup.findAll("div",{"class":"picSurround"})
-            user = users[self.numProcessed].a["href"][9:]
+            user = users[self.numProcessed % 24].a["href"][9:]
             self.processUser(user)
             self.numProcessed +=1
             if self.numProcessed % 24 == 0:
                 break
 
     def processUser(self,user):
-        client = urlopen(self.profileURL+user+"?status=7")
+        try:
+            client = urlopen(self.profileURL+user+"?status=7")
+        except urllib.error.HTTPError as e:
+            print(f"Error found while processing {user}: {e}")
+            return
+        
         page_soup = soup(client.read(),"lxml")
         info = page_soup.find_all("table",{"class":"list-table"})
-        ratings = []
-        series = []
+        rawratings = []
+        rawseries = []
         assert len(info)<2,f"Something weird happened with {user}"
             
         if len(info) == 1:
             info = info[0]["data-items"]
-            ratings = re.findall('"score":[0-9]+,"',info)
-            ratings = [x[8:-2] for x in ratings]
-            series = re.findall('"anime_title":".+?","anime',info)
-            series = [x[15:-8] for x in series]
+            rawratings = re.findall('"score":[0-9]+,"',info)
+            rawratings = [x[8:-2] for x in rawratings]
+            rawseries = re.findall('"anime_title":".+?","anime',info)
+            rawseries = [x[15:-8] for x in rawseries]
 
         else:
             allowed = ["-","1","2","3","4","5","6","7","8","9","0","10"]
-            series = [x.span.text for x in page_soup.findAll("a",{"class":"animetitle"})]
-            ratings = page_soup.findAll("span",{"class":"score-label"})
-            ratings = [x.text if (x.text != '-') else '0' for x in ratings if x.text in allowed]
+            rawseries = [x.span.text for x in page_soup.findAll("a",{"class":"animetitle"})]
+            rawratings = page_soup.findAll("span",{"class":"score-label"})
+            rawratings = [x.text if (x.text != '-') else '0' for x in rawratings if x.text in allowed]
          
+        ratings = [rawratings[i] for i in range(len(rawratings)) if rawratings[i] != '0']
+        series = [rawseries[i] for i in range(len(rawratings)) if rawratings[i] != '0']
         client.close()
         self.storage.updateObject(user,ratings,series)
-    
+        
 if __name__ == "__main__":
     s = Scraper()
     s.start()
-    
-    
-    

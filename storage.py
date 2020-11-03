@@ -17,13 +17,14 @@ class Storage():
         return res
         
     def updateObject(self,user,ratings,series):
-        assert len(ratings)==len(series), f"The lengths for {user} don't match"
-        if len(ratings)==0:
+        
+        if len(ratings)==0 or len(ratings)!=len(series):
+            print(f"The lengths for {user} are suspicious.")
             return
         field = {}
         for i in range(len(ratings)):
-            if (series[i] in self.listsObject):
-                field[self.listsObject[series[i]]] = ratings[i]
+            if (series[i] in self.seriesObject):
+                field[self.seriesObject[series[i]]] = ratings[i]
             else:
                 self.seriesObject["HashNum"] += 1
                 self.seriesObject[series[i]] = self.seriesObject["HashNum"]
