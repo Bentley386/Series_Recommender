@@ -72,6 +72,8 @@ class Scraper():
         
         page_soup = soup(client.read(),"lxml")
         info = page_soup.find_all("table",{"class":"list-table"})
+        client.close()
+        
         rawratings = []
         rawseries = []
         assert len(info)<2,f"Something weird happened with {user}"
@@ -80,9 +82,18 @@ class Scraper():
             info = info[0]["data-items"]
             rawratings = re.findall('"score":[0-9]+,"',info)
             rawratings = [x[8:-2] for x in rawratings]
-            rawseries = re.findall('"anime_title":".+?","anime',info)
-            rawseries = [x[15:-8] for x in rawseries]
+            rawseries = re.findall('"anime_title":.+?,"anime_num',info)
+            rawseries = [x[14:-11] for x in rawseries]
+            if len(rawseries) == 300:
+                page=300
+                more = self.processDynamic(user,page)
+                while len(more)>2:
+                    rawratings = rawratings + [x[8:-2] for x in re.findall('"score":[0-9]+,"',more)]
+                    rawseries = rawseries + [x[14:-11] for x in re.findall('"anime_title":.+?,"anime_num',more)]
+                    page+=300
+                    more = self.processDynamic(user,page)
 
+            
         else:
             allowed = ["-","1","2","3","4","5","6","7","8","9","0","10"]
             rawseries = [x.span.text for x in page_soup.findAll("a",{"class":"animetitle"})]
@@ -91,8 +102,11 @@ class Scraper():
          
         ratings = [rawratings[i] for i in range(len(rawratings)) if rawratings[i] != '0']
         series = [rawseries[i] for i in range(len(rawratings)) if rawratings[i] != '0']
-        client.close()
         self.storage.updateObject(user,ratings,series)
+    
+    def processDynamic(self,user,num):
+            client = urlopen(self.profileURL+user+"/load.json?offset=" + str(num) + "&status=7")
+            return client.read().decode("utf-8")
         
 if __name__ == "__main__":
     s = Scraper()
